@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Slideshow</title>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --fade-ms: 1200;
+    --slide-seconds: 5;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; width: 100%;
+    background: var(--bg);
+    overflow: hidden;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    cursor: none;
+  }
+  body:hover, body:focus-within { cursor: default; }
+
+  #stage {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+  }
+  #stage img.layer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    opacity: 0;
+    transition: opacity 0.6s ease-in-out;
+  }
+  #stage img.layer.visible {
+    opacity: 1;
+  }
+
+  #hint {
+    position: fixed;
+    bottom: 14px;
+    right: 18px;
+    color: rgba(255,255,255,0.35);
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    transition: opacity 0.4s;
+  }
+  #hint.hidden { opacity: 0; }
+
+  #playPauseBtn {
+    position: fixed;
+    top: 18px;
+    left: 18px;
+    z-index: 20;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.14);
+    color: rgba(255,255,255,0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  #playPauseBtn:hover { background: rgba(255,255,255,0.26); }
+
+  #gridBtn {
+    position: fixed;
+    top: 84px;
+    left: 18px;
+    z-index: 20;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.14);
+    color: rgba(255,255,255,0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  #gridBtn:hover { background: rgba(255,255,255,0.26); }
+
+  #fitGridBtn {
+    position: fixed;
+    top: 150px;
+    left: 18px;
+    z-index: 20;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.14);
+    color: rgba(255,255,255,0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  #fitGridBtn:hover { background: rgba(255,255,255,0.26); }
+
+  #delayBox {
+    position: fixed;
+    top: 216px;
+    left: 18px;
+    z-index: 20;
+    width: 56px;
+    height: 56px;
+  }
+  #delayInput {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.14);
+    color: rgba(255,255,255,0.9);
+    text-align: center;
+    font-size: 18px;
+    font-family: inherit;
+    -moz-appearance: textfield;
+  }
+  #delayInput::-webkit-outer-spin-button,
+  #delayInput::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  #delayInput:focus {
+    outline: 2px solid rgba(255,255,255,0.5);
+  }
+
+  #playPauseBtn, #gridBtn, #fitGridBtn, #delayBox {
+    transition: opacity 0.3s;
+  }
+  body.hide-controls #playPauseBtn,
+  body.hide-controls #gridBtn,
+  body.hide-controls #fitGridBtn,
+  body.hide-controls #delayBox {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  body.overview-open #playPauseBtn,
+  body.overview-open #gridBtn,
+  body.overview-open #fitGridBtn,
+  body.overview-open #delayInput {
+    background: rgba(20,20,20,0.55);
+  }
+  body.overview-open #playPauseBtn:hover,
+  body.overview-open #gridBtn:hover,
+  body.overview-open #fitGridBtn:hover {
+    background: rgba(20,20,20,0.75);
+  }
+
+  #empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.4);
+    font-size: 18px;
+  }
+
+  #mainLoadingIndicator {
+    position: fixed;
+    bottom: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: none;
+    align-items: center;
+    gap: 8px;
+    color: rgba(255,255,255,0.55);
+    font-size: 13px;
+    background: rgba(20,20,20,0.55);
+    padding: 6px 14px;
+    border-radius: 20px;
+    z-index: 6;
+  }
+  #mainLoadingIndicator.visible { display: flex; }
+  #mainLoadingIndicator .spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(255,255,255,0.25);
+    border-top-color: rgba(255,255,255,0.8);
+    border-radius: 50%;
+    animation: thumbspin 0.8s linear infinite;
+  }
+
+  #overview {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,10,10,0.97);
+    display: none;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 4px;
+    padding: 4px;
+    overflow-y: auto;
+    z-index: 10;
+  }
+  #overview.open { display: grid; }
+  #overview.fit {
+    overflow: hidden;
+  }
+  #overview.fit .thumb {
+    padding-top: 0; /* row height now comes from explicit grid-template-rows, not the aspect hack */
+  }
+  #overview.fit .thumb:hover img {
+    transform: scale(1.06);
+  }
+  #overview .thumb {
+    position: relative;
+    width: 100%;
+    padding-top: 100%; /* forces a reliable square box height for grid row sizing */
+    overflow: hidden;
+    cursor: pointer;
+    background: #111;
+  }
+  #overview .thumb img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.2s;
+  }
+  #overview .thumb:hover img { transform: scale(1.06); }
+  #overview .thumb.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 22px;
+    height: 22px;
+    margin: -11px 0 0 -11px;
+    border: 3px solid rgba(255,255,255,0.15);
+    border-top-color: rgba(255,255,255,0.65);
+    border-radius: 50%;
+    animation: thumbspin 0.8s linear infinite;
+  }
+  @keyframes thumbspin { to { transform: rotate(360deg); } }
+
+  #overview .thumb.current {
+    outline: 3px solid rgba(255,255,255,0.85);
+    outline-offset: -3px;
+  }
+</style>
+</head>
+<body tabindex="0">
+  <div id="stage">
+    <img class="layer" id="imgA">
+    <img class="layer" id="imgB">
+    <div id="empty">Waiting for images…</div>
+    <div id="mainLoadingIndicator"><span class="spinner"></span> Loading new image…</div>
+  </div>
+  <button id="playPauseBtn" aria-label="Play or pause slideshow">
+    <svg id="iconPlay" viewBox="0 0 24 24" width="26" height="26"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+    <svg id="iconPause" viewBox="0 0 24 24" width="26" height="26" style="display:none"><path d="M6 5h4v14H6zM14 5h4v14h-4z" fill="currentColor"/></svg>
+  </button>
+  <button id="gridBtn" aria-label="Toggle overview grid">
+    <svg viewBox="0 0 24 24" width="24" height="24">
+      <rect x="4" y="4" width="7" height="7" fill="currentColor"/>
+      <rect x="13" y="4" width="7" height="7" fill="currentColor"/>
+      <rect x="4" y="13" width="7" height="7" fill="currentColor"/>
+      <rect x="13" y="13" width="7" height="7" fill="currentColor"/>
+    </svg>
+  </button>
+  <button id="fitGridBtn" aria-label="Toggle fit-to-screen overview">
+    <svg viewBox="0 0 24 24" width="24" height="24">
+      <rect x="3" y="3" width="5" height="5" fill="currentColor"/>
+      <rect x="9.5" y="3" width="5" height="5" fill="currentColor"/>
+      <rect x="16" y="3" width="5" height="5" fill="currentColor"/>
+      <rect x="3" y="9.5" width="5" height="5" fill="currentColor"/>
+      <rect x="9.5" y="9.5" width="5" height="5" fill="currentColor"/>
+      <rect x="16" y="9.5" width="5" height="5" fill="currentColor"/>
+      <rect x="3" y="16" width="5" height="5" fill="currentColor"/>
+      <rect x="9.5" y="16" width="5" height="5" fill="currentColor"/>
+      <rect x="16" y="16" width="5" height="5" fill="currentColor"/>
+    </svg>
+  </button>
+  <div id="delayBox">
+    <input id="delayInput" type="number" min="1" step="1" value="5" aria-label="Seconds per image">
+  </div>
+  <div id="hint">Tab: overview · Space: pause · ←/→: navigate</div>
+  <div id="overview"></div>
+
+<script>
+const POLL_MS = 4000;
+let SLIDE_MS = 5000;
+
+let images = [];
+let currentIndex = -1;
+let activeLayer = 0; // 0 = imgA visible, 1 = imgB visible
+let paused = false;
+let advanceTimer = null;
+let hintTimer = null;
+let fitMode = false;
+let lastOverviewSignature = null;
+let lastMouseX = -9999;
+let lastMouseY = -9999;
+const CORNER_THRESHOLD = 260; // px from top-left corner that reveals the buttons
+
+function updateControlsVisibility() {
+  if (!overview.classList.contains('open')) {
+    document.body.classList.remove('hide-controls'); // always visible in the main slideshow
+    return;
+  }
+  const near = lastMouseX < CORNER_THRESHOLD && lastMouseY < CORNER_THRESHOLD;
+  document.body.classList.toggle('hide-controls', !near);
+}
+
+document.addEventListener('mousemove', (e) => {
+  lastMouseX = e.clientX;
+  lastMouseY = e.clientY;
+  updateControlsVisibility();
+});
+
+document.addEventListener('click', (e) => {
+  if (e.target.closest('#playPauseBtn, #gridBtn, #fitGridBtn, #delayBox')) return;
+  if (e.clientX < CORNER_THRESHOLD && e.clientY < CORNER_THRESHOLD) return; // near the buttons
+  if (e.target.closest('.thumb')) return; // thumbnails handle their own click
+  handlePlayPauseAction();
+});
+
+function computeFitGrid(n) {
+  if (n <= 0) return { columns: 1, rows: 1 };
+  const aspect = window.innerWidth / window.innerHeight;
+  let columns = Math.max(1, Math.round(Math.sqrt(n * aspect)));
+  let rows = Math.ceil(n / columns);
+  // try to trim trailing empty cells by nudging columns down if it doesn't add a row
+  while (columns > 1 && Math.ceil(n / (columns - 1)) === rows) {
+    columns -= 1;
+  }
+  return { columns, rows };
+}
+
+const imgA = document.getElementById('imgA');
+const imgB = document.getElementById('imgB');
+const emptyMsg = document.getElementById('empty');
+const mainLoadingIndicator = document.getElementById('mainLoadingIndicator');
+const overview = document.getElementById('overview');
+const hint = document.getElementById('hint');
+const playPauseBtn = document.getElementById('playPauseBtn');
+const iconPlay = document.getElementById('iconPlay');
+const iconPause = document.getElementById('iconPause');
+const gridBtn = document.getElementById('gridBtn');
+const fitGridBtn = document.getElementById('fitGridBtn');
+const delayInput = document.getElementById('delayInput');
+
+function layers() { return [imgA, imgB]; }
+imgA.fetchPriority = 'high';
+imgB.fetchPriority = 'high';
+
+// Loads an image with automatic retries. Useful because a file that just
+// appeared in the FTP listing may still be mid-upload — the first fetch
+// can get a truncated/corrupt file. Retrying (with a cache-busting param
+// so the browser doesn't just replay the same broken response) usually
+// succeeds once the upload finishes a moment later.
+function robustLoadImage(imgEl, url, { maxAttempts = 30, retryDelay = 1000, onSettled, onRetrying } = {}) {
+  const token = Symbol();
+  imgEl._loadToken = token;
+  let attempt = 0;
+  function tryOnce() {
+    if (imgEl._loadToken !== token) return; // superseded by a newer request on this element
+    attempt++;
+    const target = attempt === 1
+      ? url
+      : url + (url.includes('?') ? '&' : '?') + '_retry=' + attempt + '_' + Date.now();
+
+    const handleLoad = () => {
+      if (imgEl._loadToken !== token) { cleanup(); return; }
+      cleanup();
+      if (onSettled) onSettled(true);
+    };
+    const handleError = () => {
+      cleanup();
+      if (imgEl._loadToken !== token) return;
+      imgEl.removeAttribute('src'); // never leave a broken-image icon on screen
+      if (attempt < maxAttempts) {
+        if (onRetrying) onRetrying(attempt);
+        setTimeout(tryOnce, retryDelay);
+      } else if (onSettled) {
+        onSettled(false);
+      }
+    };
+    function cleanup() {
+      imgEl.removeEventListener('load', handleLoad);
+      imgEl.removeEventListener('error', handleError);
+    }
+    imgEl.addEventListener('load', handleLoad, { once: true });
+    imgEl.addEventListener('error', handleError, { once: true });
+    imgEl.src = target;
+  }
+  tryOnce();
+}
+
+const MAX_CONCURRENT_THUMB_LOADS = 4;
+let thumbQueue = [];
+let activeThumbLoads = 0;
+
+function pumpThumbQueue() {
+  while (activeThumbLoads < MAX_CONCURRENT_THUMB_LOADS && thumbQueue.length > 0) {
+    const { imgEl, url } = thumbQueue.shift();
+    if (!imgEl.isConnected) continue; // overview was closed/rebuilt before this got a turn
+    activeThumbLoads++;
+    imgEl.closest('.thumb')?.classList.add('loading');
+    robustLoadImage(imgEl, url, {
+      maxAttempts: 20,
+      retryDelay: 1200,
+      onSettled: () => {
+        imgEl.closest('.thumb')?.classList.remove('loading');
+        activeThumbLoads--;
+        pumpThumbQueue();
+      }
+    });
+  }
+}
+
+function cancelPendingThumbLoads() {
+  // drop anything not yet started, and abort in-flight requests by
+  // clearing src, so the browser's connection pool frees up immediately
+  // for the slide the user actually asked to see
+  thumbQueue = [];
+  overview.querySelectorAll('img').forEach(img => {
+    if (!img.complete) img.src = '';
+  });
+  activeThumbLoads = 0;
+}
+
+function showImage(index, { restartTimer = true } = {}) {
+  if (index < 0 || index >= images.length) return;
+  currentIndex = index;
+  const url = images[index]; // already a full absolute URL
+
+  const incoming = layers()[1 - activeLayer];
+  const outgoing = layers()[activeLayer];
+
+  robustLoadImage(incoming, url, {
+    onRetrying: () => mainLoadingIndicator.classList.add('visible'),
+    onSettled: (ok) => {
+      mainLoadingIndicator.classList.remove('visible');
+      if (!ok) return; // gave up — keep showing the previous image rather than a broken one
+      incoming.classList.add('visible');
+      outgoing.classList.remove('visible');
+      activeLayer = 1 - activeLayer;
+    }
+  });
+  emptyMsg.style.display = 'none';
+
+  updateOverviewHighlight();
+  if (restartTimer) resetAdvanceTimer();
+}
+
+function resetAdvanceTimer() {
+  clearTimeout(advanceTimer);
+  if (paused || overview.classList.contains('open')) return;
+  advanceTimer = setTimeout(advance, SLIDE_MS);
+}
+
+function advance(step = 1) {
+  if (images.length === 0) return;
+  const next = (currentIndex + step + images.length) % images.length;
+  showImage(next);
+}
+
+async function pollImages() {
+  try {
+    const res = await fetch('/api/images', { cache: 'no-store' });
+    const list = await res.json();
+    const currentName = images[currentIndex];
+    const grew = list.length > images.length;
+    images = list;
+
+    if (images.length === 0) {
+      emptyMsg.style.display = 'flex';
+      currentIndex = -1;
+      return;
+    }
+    if (currentIndex === -1) {
+      showImage(images.length - 1); // start on most recent
+    } else if (grew && !overview.classList.contains('open')) {
+      // a new image arrived — jump to the newest one
+      showImage(images.length - 1);
+    } else {
+      // list refreshed (or overview is open) — keep pointing at same file if present
+      const idx = images.indexOf(currentName);
+      currentIndex = idx === -1 ? Math.min(currentIndex, images.length - 1) : idx;
+    }
+    if (overview.classList.contains('open')) {
+      const signature = images.join('|');
+      if (signature !== lastOverviewSignature) {
+        renderOverview();
+        lastOverviewSignature = signature;
+      } else {
+        updateOverviewHighlight();
+      }
+    }
+  } catch (e) {
+    console.error('poll failed', e);
+  }
+}
+
+function selectFromOverview(i) {
+  currentIndex = i;
+  const url = images[i];
+  cancelPendingThumbLoads(); // free up the connection pool for this request
+  const incoming = layers()[1 - activeLayer];
+  const outgoing = layers()[activeLayer];
+
+  robustLoadImage(incoming, url, {
+    onSettled: (ok) => {
+      if (!ok) { closeOverview(); return; } // gave up after many retries — bail out gracefully
+      // instant swap, no crossfade — overview was covering the stage the
+      // whole time anyway, so there's nothing to visually transition from
+      incoming.style.transition = 'none';
+      outgoing.style.transition = 'none';
+      incoming.classList.add('visible');
+      outgoing.classList.remove('visible');
+      activeLayer = 1 - activeLayer;
+      void incoming.offsetWidth; // force reflow before restoring transition
+      incoming.style.transition = '';
+      outgoing.style.transition = '';
+
+      updateOverviewHighlight();
+      closeOverview();   // only close now that the correct image is already showing
+      resetAdvanceTimer();
+    }
+  });
+}
+
+function renderOverview() {
+  overview.innerHTML = '';
+  if (fitMode) {
+    const { columns, rows } = computeFitGrid(images.length);
+    overview.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
+    overview.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+  } else {
+    overview.style.gridTemplateColumns = '';
+    overview.style.gridTemplateRows = '';
+  }
+  images.forEach((name, i) => {
+    const div = document.createElement('div');
+    div.className = 'thumb' + (i === currentIndex ? ' current' : '');
+    const img = document.createElement('img');
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    img.fetchPriority = 'low'; // deprioritize vs. the actively-viewed slide
+    div.appendChild(img);
+    div.addEventListener('click', () => {
+      selectFromOverview(i);
+    });
+    overview.appendChild(div);
+    if (fitMode) {
+      thumbQueue.push({ imgEl: img, url: name }); // start loading only after all are attached
+    } else {
+      div.classList.add('loading');
+      robustLoadImage(img, name, {
+        maxAttempts: 20,
+        retryDelay: 1200,
+        onSettled: () => div.classList.remove('loading')
+      });
+    }
+  });
+  if (fitMode) pumpThumbQueue();
+}
+
+function updateOverviewHighlight() {
+  if (!overview.classList.contains('open')) return;
+  overview.querySelectorAll('.thumb').forEach((el, i) => {
+    el.classList.toggle('current', i === currentIndex);
+  });
+}
+
+function openOverview(fit) {
+  fitMode = !!fit;
+  overview.classList.toggle('fit', fitMode);
+  renderOverview();
+  lastOverviewSignature = images.join('|');
+  overview.classList.add('open');
+  document.body.classList.add('overview-open');
+  clearTimeout(advanceTimer);
+  updateControlsVisibility();
+}
+
+function closeOverview() {
+  overview.classList.remove('open');
+  document.body.classList.remove('overview-open');
+  cancelPendingThumbLoads();
+  resetAdvanceTimer();
+  updateControlsVisibility();
+}
+
+function toggleOverview(fit) {
+  const wantFit = !!fit;
+  if (overview.classList.contains('open')) {
+    if (fitMode !== wantFit) {
+      openOverview(wantFit); // already open in the other mode — switch, don't close
+    } else {
+      closeOverview();
+    }
+  } else {
+    openOverview(wantFit);
+  }
+}
+
+window.addEventListener('resize', () => {
+  if (fitMode && overview.classList.contains('open')) renderOverview();
+});
+
+function flashHint() {
+  hint.classList.remove('hidden');
+  clearTimeout(hintTimer);
+  hintTimer = setTimeout(() => hint.classList.add('hidden'), 3000);
+}
+
+function setPaused(newPaused) {
+  paused = newPaused;
+  iconPlay.style.display = paused ? 'none' : 'block';
+  iconPause.style.display = paused ? 'block' : 'none';
+  if (paused) {
+    clearTimeout(advanceTimer);
+  } else {
+    resetAdvanceTimer(); // resume on the currently displayed image, full delay
+  }
+}
+
+function togglePause() {
+  setPaused(!paused);
+}
+
+function handlePlayPauseAction() {
+  if (overview.classList.contains('open')) {
+    setPaused(false);  // force playing state
+    closeOverview();   // return to the slideshow view
+  } else {
+    togglePause();
+  }
+}
+
+playPauseBtn.addEventListener('click', handlePlayPauseAction);
+gridBtn.addEventListener('click', () => toggleOverview(false));
+fitGridBtn.addEventListener('click', () => toggleOverview(true));
+
+delayInput.addEventListener('input', () => {
+  const seconds = parseFloat(delayInput.value);
+  if (!isFinite(seconds) || seconds <= 0) return; // ignore empty/invalid while typing
+  SLIDE_MS = seconds * 1000;
+  resetAdvanceTimer(); // apply immediately, restarting the wait at the new duration
+});
+
+document.addEventListener('keydown', (e) => {
+  if (document.activeElement === delayInput) return; // let normal typing/navigation happen
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    toggleOverview(false);
+  } else if (e.key === ' ') {
+    e.preventDefault();
+    handlePlayPauseAction();
+  } else if (e.key === 'ArrowRight') {
+    advance(1);
+  } else if (e.key === 'ArrowLeft') {
+    advance(-1);
+  } else if (e.key === 'Escape') {
+    closeOverview();
+  }
+  flashHint();
+});
+
+document.addEventListener('mousemove', flashHint);
+flashHint();
+setPaused(false); // sync icon with actual starting state (playing)
+
+pollImages();
+setInterval(pollImages, POLL_MS);
+</script>
+</body>
+</html>
