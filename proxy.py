@@ -10,7 +10,7 @@ Usage:
     python3 proxy.py --listing-url "https://YOUR-SITE/path/to/photos/" --port 8000
 
 Then open http://localhost:8000 in your browser.
-No pip installs required — standard library only.
+Standard library only — no pip installs required.
 """
 import argparse
 import json
@@ -22,6 +22,7 @@ from urllib.request import Request, urlopen
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 IMAGE_EXT_RE = re.compile(r"\.(jpe?g|png|gif|webp)$", re.IGNORECASE)
+THUMBNAIL_RE = re.compile(r"_thumbnail\.(jpe?g|png|gif|webp)$", re.IGNORECASE)
 
 LISTING_URL = None  # set from CLI arg in main()
 
@@ -56,6 +57,8 @@ def fetch_image_list():
             continue  # skip subfolders, top-level only
         if not IMAGE_EXT_RE.search(href):
             continue
+        if THUMBNAIL_RE.search(href):
+            continue  # _thumbnail files are derived per-image on the frontend, never listed on their own
         urls.append(urljoin(LISTING_URL, href))
     return urls
 

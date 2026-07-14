@@ -406,18 +406,14 @@ let activeThumbLoads = 0;
 
 function pumpThumbQueue() {
   while (activeThumbLoads < MAX_CONCURRENT_THUMB_LOADS && thumbQueue.length > 0) {
-    const { imgEl, url } = thumbQueue.shift();
+    const { imgEl, thumbUrl, fullUrl } = thumbQueue.shift();
     if (!imgEl.isConnected) continue; // overview was closed/rebuilt before this got a turn
     activeThumbLoads++;
     imgEl.closest('.thumb')?.classList.add('loading');
-    robustLoadImage(imgEl, url, {
-      maxAttempts: 20,
-      retryDelay: 1200,
-      onSettled: () => {
-        imgEl.closest('.thumb')?.classList.remove('loading');
-        activeThumbLoads--;
-        pumpThumbQueue();
-      }
+    loadThumbWithFallback(imgEl, thumbUrl, fullUrl, () => {
+      imgEl.closest('.thumb')?.classList.remove('loading');
+      activeThumbLoads--;
+      pumpThumbQueue();
     });
   }
 }
@@ -534,6 +530,31 @@ function selectFromOverview(i) {
   });
 }
 
+function toThumbnailUrl(url) {
+  // insert _thumbnail right before the file extension, preserving any query string
+  return url.replace(/(\.[a-zA-Z0-9]+)(\?.*)?$/, '_thumbnail$1$2');
+}
+
+// Tries the _thumbnail version briefly; if it's genuinely missing (not just
+// mid-upload), falls back to loading the full-size image instead.
+function loadThumbWithFallback(imgEl, thumbUrl, fullUrl, onSettled) {
+  robustLoadImage(imgEl, thumbUrl, {
+    maxAttempts: 3,
+    retryDelay: 1000,
+    onSettled: (ok) => {
+      if (ok) {
+        if (onSettled) onSettled(true);
+      } else {
+        robustLoadImage(imgEl, fullUrl, {
+          maxAttempts: 20,
+          retryDelay: 1200,
+          onSettled
+        });
+      }
+    }
+  });
+}
+
 function renderOverview() {
   overview.innerHTML = '';
   if (fitMode) {
@@ -557,14 +578,10 @@ function renderOverview() {
     });
     overview.appendChild(div);
     if (fitMode) {
-      thumbQueue.push({ imgEl: img, url: name }); // start loading only after all are attached
+      thumbQueue.push({ imgEl: img, thumbUrl: toThumbnailUrl(name), fullUrl: name }); // start loading only after all are attached
     } else {
       div.classList.add('loading');
-      robustLoadImage(img, name, {
-        maxAttempts: 20,
-        retryDelay: 1200,
-        onSettled: () => div.classList.remove('loading')
-      });
+      loadThumbWithFallback(img, toThumbnailUrl(name), name, () => div.classList.remove('loading'));
     }
   });
   if (fitMode) pumpThumbQueue();
