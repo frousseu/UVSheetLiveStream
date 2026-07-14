@@ -594,6 +594,18 @@ function updateOverviewHighlight() {
   });
 }
 
+function syncUrlState() {
+  const params = new URLSearchParams(window.location.search);
+  if (overview.classList.contains('open')) {
+    params.set('view', fitMode ? 'full_grid' : 'scrollable_grid');
+  } else {
+    params.set('view', 'slideshow');
+  }
+  params.set('duration', SLIDE_MS / 1000);
+  const newUrl = window.location.pathname + '?' + params.toString();
+  history.replaceState(null, '', newUrl);
+}
+
 function openOverview(fit) {
   fitMode = !!fit;
   overview.classList.toggle('fit', fitMode);
@@ -603,6 +615,7 @@ function openOverview(fit) {
   document.body.classList.add('overview-open');
   clearTimeout(advanceTimer);
   updateControlsVisibility();
+  syncUrlState();
 }
 
 function closeOverview() {
@@ -611,6 +624,7 @@ function closeOverview() {
   cancelPendingThumbLoads();
   resetAdvanceTimer();
   updateControlsVisibility();
+  syncUrlState();
 }
 
 function toggleOverview(fit) {
@@ -669,6 +683,7 @@ delayInput.addEventListener('input', () => {
   if (!isFinite(seconds) || seconds <= 0) return; // ignore empty/invalid while typing
   SLIDE_MS = seconds * 1000;
   resetAdvanceTimer(); // apply immediately, restarting the wait at the new duration
+  syncUrlState();
 });
 
 document.addEventListener('keydown', (e) => {
@@ -691,6 +706,29 @@ document.addEventListener('keydown', (e) => {
 
 document.addEventListener('mousemove', flashHint);
 flashHint();
+
+// Apply ?view= and ?duration= URL parameters, if present, so a shared
+// link can land the visitor directly on a specific view/speed.
+(function applyUrlParams() {
+  const params = new URLSearchParams(window.location.search);
+
+  const duration = parseFloat(params.get('duration'));
+  if (isFinite(duration) && duration > 0) {
+    SLIDE_MS = duration * 1000;
+    delayInput.value = duration;
+  }
+
+  const view = params.get('view');
+  if (view === 'full_grid') {
+    openOverview(true);
+  } else if (view === 'scrollable_grid') {
+    openOverview(false);
+  }
+  // 'slideshow' or anything else/missing: default main view, nothing to do
+})();
+
+syncUrlState();
+
 setPaused(false); // sync icon with actual starting state (playing)
 
 pollImages();

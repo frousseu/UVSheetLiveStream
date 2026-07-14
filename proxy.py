@@ -17,7 +17,7 @@ import json
 import re
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -68,9 +68,10 @@ class Handler(BaseHTTPRequestHandler):
         pass  # quiet logs
 
     def do_GET(self):
-        if self.path in ("/", "/index.html"):
+        path = urlparse(self.path).path  # ignore query string (?view=..., ?duration=...) for routing
+        if path in ("/", "/index.html"):
             self._serve_file(Path(__file__).parent / "index.html", "text/html")
-        elif self.path == "/api/images":
+        elif path == "/api/images":
             try:
                 urls = fetch_image_list()
                 body = json.dumps(urls).encode("utf-8")
