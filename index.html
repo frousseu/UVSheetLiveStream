@@ -652,8 +652,8 @@ function flashHint() {
 
 function setPaused(newPaused) {
   paused = newPaused;
-  iconPlay.style.display = paused ? 'none' : 'block';
-  iconPause.style.display = paused ? 'block' : 'none';
+  iconPlay.style.display = paused ? 'block' : 'none';
+  iconPause.style.display = paused ? 'none' : 'block';
   if (paused) {
     clearTimeout(advanceTimer);
   } else {
