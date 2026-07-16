@@ -1,7 +1,7 @@
 #!/bin/bash
 
-WATCH_DIR="/home/frousseu/Downloads/r5"
-LOG="/home/frousseu/Downloads/r5/pipeline.log"
+WATCH_DIR="."
+LOG="./pipeline.log"
 
 mkdir crops
 
@@ -19,15 +19,20 @@ while read filename; do
 
     # run your pipeline scripts here
     echo $filepath
-    fb_predict -i $filepath -o outputs -s 0.10
-    ./crop_boxes.sh outputs _insect 0.1
+    fb_predict -i $filepath -o outputs -s 0.15
+    ./crop_boxes.sh outputs _insect 0.15
     find outputs -type f -iname "*_insect*" -exec mv {} crops \;
     rm -r outputs
     echo "crops/{$filename}_insect000.JPG"
-    #impressive -a 1 -s -d 00:00:05 --nologo crops/{$filename}_insect000.JPG
-    #your_exif_script "$filepath"
+    base="${filename%.JPG}"
+    convert "crops/${base}_insect000.JPG" -resize 'x300>' "crops/${base}_insect000_thumbnail.JPG"
+    s5cmd --profile do-tor1 --endpoint-url https://nyc3.digitaloceanspaces.com cp --acl public-read "crops/${base}_insect000.JPG" s3://uvsheetlivestream/
+    s5cmd --profile do-tor1 --endpoint-url https://nyc3.digitaloceanspaces.com cp --acl public-read "crops/${base}_insect000_thumbnail.JPG" s3://uvsheetlivestream/
+    ./image_list.sh $base_insect000.JPG
+    s5cmd --profile do-tor1 --endpoint-url https://nyc3.digitaloceanspaces.com cp --acl public-read images.json s3://uvsheetlivestream/
 done
 
 #impressive -a 1 -s -d 00:00:05 --nologo $filepath
-
 #for f in *.JPG; do darktable-cli "$f" "$f_processed.jpg" --style "shadows" --style-overwrite; done
+
+# s5cmd --profile do-tor1 --endpoint-url https://nyc3.digitaloceanspaces.com rm 's3://uvsheetlivestream/*.JPG'

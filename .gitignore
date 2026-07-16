@@ -2,6 +2,7 @@
 *.JPG
 *.log
 *.pt
+*.json
 crops
 outputs
 overviews
