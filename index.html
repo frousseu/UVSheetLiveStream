@@ -465,10 +465,26 @@ function advance(step = 1) {
   showImage(next);
 }
 
+const BUCKET_LIST_URL = 'https://uvsheetlivestream.nyc3.digitaloceanspaces.com/?list-type=2';
+const LOCAL_API_URL = 'http://localhost:8000/api/images';
+const useLocalSource = new URLSearchParams(window.location.search).get('source') === 'local';
+
+async function fetchImageList() {
+  if (useLocalSource) {
+    const res = await fetch(LOCAL_API_URL, { cache: 'no-store' });
+    return await res.json(); // array of full image URLs, served by local_server.py
+  }
+  const res = await fetch(BUCKET_LIST_URL, { cache: 'no-store' });
+  const xml = new DOMParser().parseFromString(await res.text(), 'application/xml');
+  return Array.from(xml.querySelectorAll('Contents > Key'))
+    .map(k => k.textContent)
+    .filter(key => /\.(jpe?g|png|gif|webp)$/i.test(key) && !/_thumbnail\./i.test(key))
+    .map(key => 'https://uvsheetlivestream.nyc3.digitaloceanspaces.com/' + key);
+}
+
 async function pollImages() {
   try {
-    const res = await fetch('/api/images', { cache: 'no-store' });
-    const list = await res.json();
+    const list = await fetchImageList();
     const currentName = images[currentIndex];
     const grew = list.length > images.length;
     images = list;
