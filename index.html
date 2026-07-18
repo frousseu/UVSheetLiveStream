@@ -197,7 +197,11 @@
     inset: 0;
     background: rgba(10,10,10,0.97);
     display: none;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(220px, 220px));
+    justify-content: start;
+    align-content: start;
+    align-items: start;
+    align-content: start;
     gap: 4px;
     padding: 4px;
     overflow-y: auto;
@@ -206,6 +210,8 @@
   #overview.open { display: grid; }
   #overview.fit {
     overflow: hidden;
+    align-content: stretch;
+    align-items: stretch;
   }
   #overview.fit .thumb {
     padding-top: 0; /* row height now comes from explicit grid-template-rows, not the aspect hack */
