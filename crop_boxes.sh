@@ -8,15 +8,19 @@
 #     <folder_name>.EXT   <- actual image, sibling of parent_dir, name matches folder
 #
 # For each subfolder of parent_dir:
-#   - find its *.json
 #   - find the matching image (by folder name) one level above parent_dir
-#   - if there are multiple boxes, keep only the one whose center is closest
-#     to the image's center (assumed to be the main subject / insect)
-#   - pad the longest side of that box by 20% (10% each side), make it
-#     square using that padded length, centered on the original box, then
-#     clamp to the image bounds (shifting back in-bounds first, only
-#     truncating if the image itself is smaller than the target square)
-#   - crop out the resulting square
+#   - find its *.json
+#     - if the JSON is missing or has no boxes: use the full original image,
+#       no cropping
+#     - otherwise: if there are multiple boxes, keep only the one whose
+#       center is closest to the image's center (assumed to be the main
+#       subject / insect); pad the longest side of that box by 20%
+#       (10% each side), make it square using that padded length, centered
+#       on the original box, then clamp to the image bounds (shifting back
+#       in-bounds first, only truncating if the image itself is smaller
+#       than the target square)
+#   - crop out the resulting square (or copy the full frame in the fallback
+#     case)
 #   - stamp the original photo's date/time (from EXIF) in the top-right
 #     corner, small and discrete, in pale text on dark backgrounds or
 #     dark text on pale backgrounds (auto-detected from that corner)
@@ -54,18 +58,6 @@ for dir in "$PARENT_DIR"/*/; do
     dir="${dir%/}"
     folder_name="$(basename "$dir")"
 
-    json_file=$(find "$dir" -maxdepth 1 -iname "*.json" | head -n1)
-    if [[ -z "$json_file" ]]; then
-        echo "[$folder_name] no JSON metadata file found, skipping" >&2
-        continue
-    fi
-
-    n_boxes=$(jq '.boxes | length' "$json_file")
-    if [[ "$n_boxes" -eq 0 ]]; then
-        echo "[$folder_name] JSON has no boxes, skipping" >&2
-        continue
-    fi
-
     mapfile -t images < <(find "$IMAGE_DIR" -maxdepth 1 -type f \
         -iname "${folder_name}.*" \
         \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \
@@ -85,54 +77,72 @@ for dir in "$PARENT_DIR"/*/; do
 
     read -r img_w img_h <<< "$(identify -format "%w %h" "$img")"
 
-    # pick the box whose center is closest to the image center
-    if [[ "$n_boxes" -eq 1 ]]; then
-        best_i=0
+    json_file=$(find "$dir" -maxdepth 1 -iname "*.json" | head -n1)
+    n_boxes=0
+    if [[ -n "$json_file" ]]; then
+        n_boxes=$(jq '.boxes | length' "$json_file")
+    fi
+
+    if [[ -z "$json_file" || "$n_boxes" -eq 0 ]]; then
+        # --- fallback: no JSON / no boxes, use the full original image ---
+        if [[ -z "$json_file" ]]; then
+            echo "[$folder_name] no JSON metadata file found, using original image uncropped"
+        else
+            echo "[$folder_name] JSON has no boxes, using original image uncropped"
+        fi
+        nx=0; ny=0; nw=$img_w; nh=$img_h
+        idx="000"
     else
-        best_i=$(jq -r --argjson iw "$img_w" --argjson ih "$img_h" '
-            (.boxes | to_entries | map(
-                . as $e |
-                (($e.value[0] + $e.value[2]) / 2) as $cx |
-                (($e.value[1] + $e.value[3]) / 2) as $cy |
-                {index: $e.key, dist: (( $cx - ($iw/2) )*( $cx - ($iw/2) ) + ( $cy - ($ih/2) )*( $cy - ($ih/2) ))}
-            ) | sort_by(.dist) | .[0].index)
-        ' "$json_file")
-        echo "[$folder_name] $n_boxes boxes found, keeping box $best_i (closest to image center)"
+        # pick the box whose center is closest to the image center
+        if [[ "$n_boxes" -eq 1 ]]; then
+            best_i=0
+        else
+            best_i=$(jq -r --argjson iw "$img_w" --argjson ih "$img_h" '
+                (.boxes | to_entries | map(
+                    . as $e |
+                    (($e.value[0] + $e.value[2]) / 2) as $cx |
+                    (($e.value[1] + $e.value[3]) / 2) as $cy |
+                    {index: $e.key, dist: (( $cx - ($iw/2) )*( $cx - ($iw/2) ) + ( $cy - ($ih/2) )*( $cy - ($ih/2) ))}
+                ) | sort_by(.dist) | .[0].index)
+            ' "$json_file")
+            echo "[$folder_name] $n_boxes boxes found, keeping box $best_i (closest to image center)"
+        fi
+
+        read -r x1 y1 x2 y2 <<< "$(jq -r ".boxes[$best_i] | @tsv" "$json_file")"
+
+        w=$(( x2 - x1 ))
+        h=$(( y2 - y1 ))
+
+        if (( w <= 0 || h <= 0 )); then
+            echo "[$folder_name] box $best_i is invalid (w=$w h=$h), skipping" >&2
+            continue
+        fi
+
+        read -r nx ny nw nh <<< "$(awk -v x1="$x1" -v y1="$y1" -v x2="$x2" -v y2="$y2" \
+            -v imgw="$img_w" -v imgh="$img_h" -v pad="$PAD" 'BEGIN{
+            w=x2-x1; h=y2-y1;
+            longest=(w>h)?w:h;
+            side=longest*(1+pad);
+            cx=(x1+x2)/2.0; cy=(y1+y2)/2.0;
+            left=cx-side/2; right=cx+side/2;
+            top=cy-side/2; bottom=cy+side/2;
+            if(left<0){right+=-left; left=0}
+            if(right>imgw){left-=(right-imgw); right=imgw}
+            if(left<0){left=0}
+            if(top<0){bottom+=-top; top=0}
+            if(bottom>imgh){top-=(bottom-imgh); bottom=imgh}
+            if(top<0){top=0}
+            nw=right-left; nh=bottom-top;
+            printf "%d %d %d %d\n", left, top, nw, nh;
+        }')"
+
+        idx=$(printf "%03d" "$best_i")
     fi
 
-    read -r x1 y1 x2 y2 <<< "$(jq -r ".boxes[$best_i] | @tsv" "$json_file")"
-
-    w=$(( x2 - x1 ))
-    h=$(( y2 - y1 ))
-
-    if (( w <= 0 || h <= 0 )); then
-        echo "[$folder_name] box $best_i is invalid (w=$w h=$h), skipping" >&2
-        continue
-    fi
-
-    read -r nx ny nw nh <<< "$(awk -v x1="$x1" -v y1="$y1" -v x2="$x2" -v y2="$y2" \
-        -v imgw="$img_w" -v imgh="$img_h" -v pad="$PAD" 'BEGIN{
-        w=x2-x1; h=y2-y1;
-        longest=(w>h)?w:h;
-        side=longest*(1+pad);
-        cx=(x1+x2)/2.0; cy=(y1+y2)/2.0;
-        left=cx-side/2; right=cx+side/2;
-        top=cy-side/2; bottom=cy+side/2;
-        if(left<0){right+=-left; left=0}
-        if(right>imgw){left-=(right-imgw); right=imgw}
-        if(left<0){left=0}
-        if(top<0){bottom+=-top; top=0}
-        if(bottom>imgh){top-=(bottom-imgh); bottom=imgh}
-        if(top<0){top=0}
-        nw=right-left; nh=bottom-top;
-        printf "%d %d %d %d\n", left, top, nw, nh;
-    }')"
-
-    idx=$(printf "%03d" "$best_i")
     out="${dir}/$(basename "$base")${SUFFIX}${idx}.${ext}"
 
     convert "$img" -crop "${nw}x${nh}+${nx}+${ny}" +repage "$out"
-    echo "[$folder_name] kept box $idx -> $(basename "$out")  (box: ${nw}x${nh}+${nx}+${ny})"
+    echo "[$folder_name] -> $(basename "$out")  (region: ${nw}x${nh}+${nx}+${ny})"
 
     # --- date/time stamp ---
     date_text=$(exiftool -DateTimeOriginal -d "$DATE_FORMAT" -s3 "$img" 2>/dev/null)

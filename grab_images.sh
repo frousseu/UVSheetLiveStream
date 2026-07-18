@@ -28,8 +28,9 @@ while read filename; do
     convert "crops/${base}_insect000.JPG" -resize 'x300>' "crops/${base}_insect000_thumbnail.JPG"
     s5cmd --profile do-tor1 --endpoint-url https://nyc3.digitaloceanspaces.com cp --acl public-read "crops/${base}_insect000.JPG" s3://uvsheetlivestream/
     s5cmd --profile do-tor1 --endpoint-url https://nyc3.digitaloceanspaces.com cp --acl public-read "crops/${base}_insect000_thumbnail.JPG" s3://uvsheetlivestream/
-    ./image_list.sh $base_insect000.JPG
+    ./image_list.sh "${base}_insect000.JPG"
     s5cmd --profile do-tor1 --endpoint-url https://nyc3.digitaloceanspaces.com cp --acl public-read images.json s3://uvsheetlivestream/
+    #cat images.json
 done
 
 #impressive -a 1 -s -d 00:00:05 --nologo $filepath
