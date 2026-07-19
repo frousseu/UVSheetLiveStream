@@ -255,6 +255,35 @@
     outline: 3px solid rgba(255,255,255,0.85);
     outline-offset: -3px;
   }
+
+  @media (max-width: 768px), (orientation: portrait) {
+    body.hide-controls #playPauseBtn,
+    body.hide-controls #gridBtn,
+    body.hide-controls #fitGridBtn,
+    body.hide-controls #delayBox {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #overview {
+      grid-template-columns: repeat(auto-fill, minmax(24.55vw, 24.55vw));
+      grid-auto-rows: 24.55vw;
+    }
+
+    #playPauseBtn, #gridBtn, #fitGridBtn, #delayBox, #delayInput {
+      width: 112px;
+      height: 112px;
+    }
+    #playPauseBtn { top: 18px; left: 18px; }
+    #gridBtn { top: 140px; left: 18px; }
+    #fitGridBtn { top: 262px; left: 18px; }
+    #delayBox { top: 384px; left: 18px; }
+    #playPauseBtn svg, #gridBtn svg, #fitGridBtn svg {
+      width: 52px;
+      height: 52px;
+    }
+    #delayInput { font-size: 36px; }
+  }
 </style>
 </head>
 <body tabindex="0">
@@ -332,6 +361,29 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('.thumb')) return; // thumbnails handle their own click
   handlePlayPauseAction();
 });
+
+let touchStartX = null;
+let touchStartY = null;
+const SWIPE_THRESHOLD = 50; // px
+
+document.addEventListener('touchstart', (e) => {
+  if (overview.classList.contains('open')) return; // let native scrolling work in a gallery
+  const t = e.touches[0];
+  touchStartX = t.clientX;
+  touchStartY = t.clientY;
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+  if (touchStartX === null || overview.classList.contains('open')) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - touchStartX;
+  const dy = t.clientY - touchStartY;
+  touchStartX = null;
+  if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
+    if (dx < 0) advance(1);   // swipe left -> next
+    else advance(-1);         // swipe right -> previous
+  }
+}, { passive: true });
 
 function computeFitGrid(n) {
   if (n <= 0) return { columns: 1, rows: 1 };
@@ -705,11 +757,21 @@ delayInput.addEventListener('input', () => {
   syncUrlState();
 });
 
+function cycleView() {
+  if (!overview.classList.contains('open')) {
+    openOverview(false); // slideshow -> scrollable grid
+  } else if (!fitMode) {
+    openOverview(true);  // scrollable grid -> fit-to-viewport grid
+  } else {
+    closeOverview();     // fit-to-viewport grid -> back to slideshow
+  }
+}
+
 document.addEventListener('keydown', (e) => {
   if (document.activeElement === delayInput) return; // let normal typing/navigation happen
   if (e.key === 'Tab') {
     e.preventDefault();
-    toggleOverview(false);
+    cycleView();
   } else if (e.key === ' ') {
     e.preventDefault();
     handlePlayPauseAction();
