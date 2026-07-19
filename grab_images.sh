@@ -21,16 +21,19 @@ while read filename; do
     echo $filepath
     fb_predict -i $filepath -o outputs -s 0.15
     ./crop_boxes.sh outputs _insect 0.15
+    fp=$(find outputs -type f -iname "*_insect*")
+    full=$(basename "$fp")
+    thumb="${full%.*}_thumbnail.${full##*.}"
     find outputs -type f -iname "*_insect*" -exec mv {} crops \;
     rm -r outputs
     echo "crops/{$filename}_insect000.JPG"
-    base="${filename%.JPG}"
-    convert "crops/${base}_insect000.JPG" -resize 'x300>' "crops/${base}_insect000_thumbnail.JPG"
-    s5cmd --profile do-tor1 --endpoint-url https://nyc3.digitaloceanspaces.com cp --acl public-read "crops/${base}_insect000.JPG" s3://uvsheetlivestream/
-    s5cmd --profile do-tor1 --endpoint-url https://nyc3.digitaloceanspaces.com cp --acl public-read "crops/${base}_insect000_thumbnail.JPG" s3://uvsheetlivestream/
-    ./image_list.sh "${base}_insect000.JPG"
+    #base="${filename%.JPG}"
+    convert "crops/${full}" -resize 'x300>' "crops/${thumb}"
+    convert "crops/${full}" -resize 'x2000>' "crops/${full}"
+    s5cmd --profile do-tor1 --endpoint-url https://nyc3.digitaloceanspaces.com cp --acl public-read "crops/${full}" s3://uvsheetlivestream/
+    s5cmd --profile do-tor1 --endpoint-url https://nyc3.digitaloceanspaces.com cp --acl public-read "crops/${thumb}" s3://uvsheetlivestream/
+    ./image_list.sh "${full}"
     s5cmd --profile do-tor1 --endpoint-url https://nyc3.digitaloceanspaces.com cp --acl public-read images.json s3://uvsheetlivestream/
-    #cat images.json
 done
 
 #impressive -a 1 -s -d 00:00:05 --nologo $filepath
