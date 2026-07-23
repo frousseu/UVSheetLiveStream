@@ -736,6 +736,10 @@ function syncUrlState() {
 }
 
 function openOverview(fit) {
+  if (latestMode && savedSlideshowIndex !== null) {
+    showImage(savedSlideshowIndex, { restartTimer: false }); // restore, don't leave it stuck on the latest photo
+    savedSlideshowIndex = null;
+  }
   latestMode = false;
   fitMode = !!fit;
   overview.classList.toggle('fit', fitMode);
