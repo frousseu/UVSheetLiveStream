@@ -297,6 +297,25 @@
     outline-offset: -3px;
   }
 
+  @keyframes thumbFlash {
+    0% { transform: scale(1); }
+    30% { transform: scale(0.9); }
+    100% { transform: scale(1); }
+  }
+  #overview .thumb.flash {
+    animation: thumbFlash 1.5s ease-out;
+    z-index: 5; /* render above neighboring thumbnails while enlarged */
+  }
+
+  @keyframes thumbFlashFit {
+    0% { transform: scale(1); }
+    30% { transform: scale(0.8); }
+    100% { transform: scale(1); }
+  }
+  #overview.fit .thumb.flash {
+    animation: thumbFlashFit 1.5s ease-out;
+  }
+
   .view-btn {
     outline: none;
   }
@@ -761,9 +780,12 @@ function openOverview(fit) {
   clearTimeout(advanceTimer);
   updateControlsVisibility();
   syncUrlState();
-  if (!fitMode) {
-    const currentThumb = overview.querySelector('.thumb.current');
-    if (currentThumb) currentThumb.scrollIntoView({ block: 'center' });
+  const currentThumb = overview.querySelector('.thumb.current');
+  if (currentThumb) {
+    if (!fitMode) currentThumb.scrollIntoView({ block: 'center' });
+    currentThumb.classList.remove('flash');
+    void currentThumb.offsetWidth; // force reflow so the animation restarts if triggered again
+    currentThumb.classList.add('flash');
   }
 }
 
