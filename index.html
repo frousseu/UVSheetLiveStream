@@ -76,7 +76,9 @@
     cursor: pointer;
     transition: background 0.2s;
   }
-  #latestBtn:hover { background: rgba(255,255,255,0.26); }
+  @media (hover: hover) {
+    #latestBtn:hover { background: rgba(255,255,255,0.26); }
+  }
 
   #gridBtn {
     position: fixed;
@@ -95,7 +97,9 @@
     cursor: pointer;
     transition: background 0.2s;
   }
-  #gridBtn:hover { background: rgba(255,255,255,0.26); }
+  @media (hover: hover) {
+    #gridBtn:hover { background: rgba(255,255,255,0.26); }
+  }
 
   #fitGridBtn {
     position: fixed;
@@ -114,7 +118,9 @@
     cursor: pointer;
     transition: background 0.2s;
   }
-  #fitGridBtn:hover { background: rgba(255,255,255,0.26); }
+  @media (hover: hover) {
+    #fitGridBtn:hover { background: rgba(255,255,255,0.26); }
+  }
 
   #playPauseBtn {
     position: fixed;
@@ -133,7 +139,9 @@
     cursor: pointer;
     transition: background 0.2s;
   }
-  #playPauseBtn:hover { background: rgba(255,255,255,0.26); }
+  @media (hover: hover) {
+    #playPauseBtn:hover { background: rgba(255,255,255,0.26); }
+  }
 
   #delayBox {
     position: fixed;
@@ -289,6 +297,9 @@
     outline-offset: -3px;
   }
 
+  .view-btn {
+    outline: none;
+  }
   .view-btn.active {
     box-shadow: 0 0 0 0.15vmin rgba(255,255,255,0.85);
   }
@@ -750,6 +761,10 @@ function openOverview(fit) {
   clearTimeout(advanceTimer);
   updateControlsVisibility();
   syncUrlState();
+  if (!fitMode) {
+    const currentThumb = overview.querySelector('.thumb.current');
+    if (currentThumb) currentThumb.scrollIntoView({ block: 'center' });
+  }
 }
 
 function closeOverview() {
