@@ -403,14 +403,14 @@ let touchStartY = null;
 const SWIPE_THRESHOLD = 50;
 
 document.addEventListener('touchstart', (e) => {
-  if (overview.classList.contains('open') || latestMode) return;
+  if (overview.classList.contains('open')) return;
   const t = e.touches[0];
   touchStartX = t.clientX;
   touchStartY = t.clientY;
 }, { passive: true });
 
 document.addEventListener('touchend', (e) => {
-  if (touchStartX === null || overview.classList.contains('open') || latestMode) return;
+  if (touchStartX === null || overview.classList.contains('open')) return;
   const t = e.changedTouches[0];
   const dx = t.clientX - touchStartX;
   const dy = t.clientY - touchStartY;
@@ -545,7 +545,6 @@ function resetAdvanceTimer() {
 }
 
 function advance(step = 1) {
-  if (latestMode) return; // latest view is locked to the newest photo
   if (images.length === 0) return;
   const next = (currentIndex + step + images.length) % images.length;
   showImage(next);
@@ -822,13 +821,7 @@ playPauseBtn.addEventListener('click', () => {
 });
 gridBtn.addEventListener('click', () => toggleOverview(false));
 fitGridBtn.addEventListener('click', () => toggleOverview(true));
-latestBtn.addEventListener('click', () => {
-  if (latestMode) {
-    exitLatestViewToSlideshow();
-  } else {
-    enterLatestView();
-  }
-});
+latestBtn.addEventListener('click', enterLatestView);
 
 delayInput.addEventListener('input', () => {
   const seconds = parseFloat(delayInput.value);
