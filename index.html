@@ -48,6 +48,17 @@
   }
   #hint.hidden { opacity: 0; }
 
+  #imageCounter {
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    z-index: 6;
+    color: rgba(255,255,255,0.5);
+    font-size: 14px;
+    letter-spacing: 0.02em;
+  }
+  body.overview-open #imageCounter { display: none; }
+
   #latestBtn {
     position: fixed;
     top: 18px;
@@ -355,6 +366,7 @@
     <input id="delayInput" type="number" min="1" step="1" value="3" aria-label="Seconds per image">
   </div>
   <div id="hint">Tab: cycle views · Space: pause · ←/→: navigate</div>
+  <div id="imageCounter"></div>
   <div id="overview"></div>
 
 <script>
@@ -438,6 +450,11 @@ const emptyMsg = document.getElementById('empty');
 const mainLoadingIndicator = document.getElementById('mainLoadingIndicator');
 const overview = document.getElementById('overview');
 const hint = document.getElementById('hint');
+const imageCounter = document.getElementById('imageCounter');
+
+function updateImageCounter() {
+  imageCounter.textContent = images.length === 0 ? '' : `${currentIndex + 1} / ${images.length}`;
+}
 const playPauseBtn = document.getElementById('playPauseBtn');
 const iconPlay = document.getElementById('iconPlay');
 const iconPause = document.getElementById('iconPause');
@@ -535,6 +552,7 @@ function showImage(index, { restartTimer = true } = {}) {
   emptyMsg.style.display = 'none';
 
   updateOverviewHighlight();
+  updateImageCounter();
   if (restartTimer) resetAdvanceTimer();
 }
 
@@ -575,6 +593,7 @@ async function pollImages() {
     if (images.length === 0) {
       emptyMsg.style.display = 'flex';
       currentIndex = -1;
+      updateImageCounter();
       return;
     }
     if (currentIndex === -1) {
@@ -585,6 +604,7 @@ async function pollImages() {
       const idx = images.indexOf(currentName);
       currentIndex = idx === -1 ? Math.min(currentIndex, images.length - 1) : idx;
     }
+    updateImageCounter();
     if (overview.classList.contains('open')) {
       const signature = images.join('|');
       if (signature !== lastOverviewSignature) {
@@ -619,6 +639,7 @@ function selectFromOverview(i) {
       outgoing.style.transition = '';
 
       updateOverviewHighlight();
+      updateImageCounter();
       closeOverview();
       setPaused(true); // land on the selected image, paused
     }
